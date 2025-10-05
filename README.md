@@ -27,7 +27,7 @@ An interactive Python utility that automatically generates calendar files for up
 | **Codeforces** | `cf`  | Live API data                   | Variable    |
 | **CodeChef**   | `cc`  | Wednesdays 8:00 PM IST          | 2 hours     |
 | **AtCoder**    | `ac`  | Saturdays 5:30 PM IST           | 100 minutes |
-| **LeetCode**   | `lc`  | Sundays 8:00 AM IST + Bi-weekly | Variable    |
+| **LeetCode**   | `lc`  | Sundays 8:00 AM IST + Bi-weekly | 90 minutes  |
 
 ## ✨ Key Features
 
