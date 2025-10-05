@@ -1,94 +1,288 @@
-# Contest Calendar Generator
+# 🏆 Contest Calendar Generator
 
-An interactive Python utility that assembles upcoming programming contest schedules from popular platforms into an iCalendar (`.ics`) file you can import into Google Calendar, Apple Calendar, or any modern calendar app. The tool mixes live data (Codeforces) with well-known recurring contest slots (CodeChef, AtCoder, LeetCode) so you can keep an eye on weekly and biweekly rounds without manually creating events.
+<div align="center">
 
-## Features
-- Supports Codeforces, CodeChef, AtCoder, and LeetCode with simple aliases (`cf`, `cc`, `ac`, `lc`).
-- Interactive menu when no platforms are specified; fully scriptable via CLI flags.
-- Fetches Codeforces contest data through the public API and groups overlapping divisions into a single event per timeslot.
-- Generates recurring events for the other platforms in the Asia/Kolkata timezone across your selected horizon (default six months).
-- Injects meeting reminders into every event (10 minutes by default, configurable per run).
-- Produces self-contained `.ics` files with deterministic filenames and optional automatic opening on macOS.
-- Lets you decide how many months of contests to include (default six).
+[![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
+[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![Platforms](https://img.shields.io/badge/platforms-CF%20%7C%20CC%20%7C%20AC%20%7C%20LC-orange.svg)](#supported-platforms)
 
-## Requirements
-- Python 3.8 or newer (relies on postponed annotations from `__future__`).
-- Dependencies listed in `requirements.txt`:
-  - `requests` for HTTP access to the Codeforces API.
-  - `ics` for building iCalendar files.
-  - `python-dateutil` for timezone handling and recurring date math.
+_Never miss a programming contest again!_ 📅
 
-Install dependencies with:
+</div>
 
-```bash
-python3 -m pip install -r requirements.txt
-```
+An interactive Python utility that automatically generates calendar files for upcoming programming contests from popular platforms. Simply run the script and import the generated `.ics` file into your favorite calendar app to stay on top of all contests!
 
-## Getting Started
-1. Clone or download this repository.
-2. (Optional) Create and activate a virtual environment.
-3. Install dependencies as shown above.
-4. Run the generator:
+## ✨ Why Use This Tool?
 
+- 🎯 **One-click setup**: Generate calendar events for all major programming platforms
+- 🔄 **Always up-to-date**: Fetches live contest data from APIs
+- ⏰ **Smart reminders**: Never miss a contest with customizable alerts
+- 📱 **Universal compatibility**: Works with Google Calendar, Apple Calendar, Outlook, and more
+- 🚀 **Easy automation**: Perfect for competitive programmers and contest enthusiasts
+
+## 🎪 Supported Platforms
+
+| Platform       | Alias | Schedule                        | Duration    |
+| -------------- | ----- | ------------------------------- | ----------- |
+| **Codeforces** | `cf`  | Live API data                   | Variable    |
+| **CodeChef**   | `cc`  | Wednesdays 8:00 PM IST          | 2 hours     |
+| **AtCoder**    | `ac`  | Saturdays 5:30 PM IST           | 100 minutes |
+| **LeetCode**   | `lc`  | Sundays 8:00 AM IST + Bi-weekly | Variable    |
+
+## ✨ Key Features
+
+- 🎯 **Multi-platform support** with simple aliases (`cf`, `cc`, `ac`, `lc`)
+- 🤖 **Interactive mode** with guided setup or **CLI automation** for power users
+- 📊 **Smart contest grouping** - combines overlapping divisions into single events
+- ⏰ **Customizable reminders** (10 minutes default, fully adjustable)
+- 📅 **Flexible time horizon** - generate up to 6 months of contests
+- 🍎 **macOS integration** - automatically opens generated calendars
+- 🔧 **Developer-friendly** - easy to extend with new platforms
+
+## 🚀 Quick Start
+
+### Prerequisites
+
+- 🐍 **Python 3.8+** (uses modern type annotations)
+- 📦 **pip** (Python package manager)
+
+### 📥 Installation
+
+1. **Clone the repository**
+
+   ```bash
+   git clone <repository-url>
+   cd contest-calendar-generator
+   ```
+
+2. **Install dependencies**
+
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+   <details>
+   <summary>📋 What gets installed?</summary>
+
+   - `requests` - For fetching contest data from APIs
+   - `ics` - For creating calendar files
+   - `python-dateutil` - For smart date/time handling
+
+   </details>
+
+3. **Run the generator**
    ```bash
    python3 contest_calendar.py
    ```
 
-   The script will prompt you to select platforms, reminder lead time, and the number of months to include if you do not pass flags.
+That's it! 🎉 The script will guide you through the rest.
 
-## Command-Line Usage
-You can bypass the interactive prompts and automate runs with CLI options:
+## 💡 Usage Examples
+
+### 🎮 Interactive Mode (Recommended for beginners)
+
+Simply run the script and follow the prompts:
 
 ```bash
-python3 contest_calendar.py \
-  --platforms cf,lc \
-  --reminder 15 \
-  --months 4 \
-  --output my_contests.ics \
-  --open
+python3 contest_calendar.py
 ```
 
-- `--platforms`: Comma/space separated list. Aliases: `cf`, `cc`, `ac`, `lc`.
-- `--reminder`: Minutes before contest start to trigger an alert (must be ≥ 0).
-- `--months`: How many upcoming months of contests to include (must be > 0).
-- `--output`: Custom output file name. Defaults to `YYYY-MM-DD_CF_CC.ics` based on the selected platforms.
-- `--quiet`: Suppress non-error console output (useful for scheduled jobs).
-- `--open`: Open the generated file with the default system handler (designed for macOS `open`).
+The tool will ask you:
 
-If you omit `--platforms`, `--reminder`, or `--months`, the script falls back to prompting in the terminal for those values.
+- Which platforms to include
+- How many minutes before contests to remind you
+- How many months of contests to generate
 
-## Platform Schedules
-- **Codeforces**: Retrieves upcoming contests from the official API. When multiple divisions overlap, the script keeps the most relevant division (preferring Div. 2 → Div. 3 → Div. 4 → Div. 1) and lists the rest in the event description.
-- **CodeChef**: Creates weekly events every Wednesday at 20:00 Asia/Kolkata with a 2-hour duration.
-- **AtCoder**: Creates weekly events every Saturday at 17:30 Asia/Kolkata lasting 100 minutes for the Beginner Contest.
-- **LeetCode**: Creates weekly contests every Sunday at 08:00 Asia/Kolkata and biweekly contests every other Saturday night at 20:00 Asia/Kolkata.
+### ⚡ Command-Line Mode (For power users)
 
-All recurring schedules are generated for the number of months you request (default six) starting from the run date. Adjust the source code if you would like to target a different timezone or cadence.
+**Generate contests for all platforms with 15-minute reminders:**
 
-## Automating Codeforces Updates (macOS)
-The helper script `update_codeforces_calendar.sh` regenerates a Codeforces-only calendar and opens it in the Calendar app:
+```bash
+python3 contest_calendar.py --platforms cf,cc,ac,lc --reminder 15 --months 6
+```
+
+**Quick Codeforces-only calendar:**
+
+```bash
+python3 contest_calendar.py --platforms cf --reminder 10 --months 3 --open
+```
+
+**Silent mode for automation:**
+
+```bash
+python3 contest_calendar.py --platforms cf,lc --reminder 5 --months 4 --quiet
+```
+
+### 🛠️ Command-Line Options
+
+| Option        | Description                                   | Example                    |
+| ------------- | --------------------------------------------- | -------------------------- |
+| `--platforms` | Platforms to include (`cf`, `cc`, `ac`, `lc`) | `--platforms cf,lc`        |
+| `--reminder`  | Minutes before contest for alerts             | `--reminder 15`            |
+| `--months`    | Months of contests to generate                | `--months 6`               |
+| `--output`    | Custom output filename                        | `--output my_contests.ics` |
+| `--quiet`     | Suppress console output                       | `--quiet`                  |
+| `--open`      | Auto-open file (macOS)                        | `--open`                   |
+
+## 📅 How It Works
+
+### 🎯 Smart Contest Detection
+
+- **Codeforces**: Fetches live contest data from the official API
+- **Other Platforms**: Uses well-known recurring schedules
+
+### 🧠 Intelligent Grouping
+
+When multiple Codeforces divisions overlap (e.g., Div. 1 + Div. 2), the tool:
+
+1. Creates one event for the most relevant division (Div. 2 → Div. 3 → Div. 4 → Div. 1)
+2. Lists other divisions in the event description
+3. Keeps your calendar clean and organized
+
+### 🌍 Timezone & Scheduling
+
+All contests are scheduled in **Asia/Kolkata timezone**:
+
+<details>
+<summary>📊 Detailed Platform Schedules</summary>
+
+| Platform       | When                                          | Duration    | Notes                      |
+| -------------- | --------------------------------------------- | ----------- | -------------------------- |
+| **Codeforces** | Variable (API-driven)                         | 2-3 hours   | Live contest data          |
+| **CodeChef**   | Every Wednesday 8:00 PM                       | 2 hours     | Long Challenge + Cook-offs |
+| **AtCoder**    | Every Saturday 5:30 PM                        | 100 minutes | Beginner Contest           |
+| **LeetCode**   | Sundays 8:00 AM + Bi-weekly Saturdays 8:00 PM | Variable    | Weekly + Bi-weekly rounds  |
+
+</details>
+
+## 📱 Adding to Your Calendar
+
+### Method 1: Drag & Drop (Easiest)
+
+1. Run the script to generate your `.ics` file
+2. Drag the file directly into your calendar app
+3. ✅ Done! Your contests are now scheduled
+
+### Method 2: Import Feature
+
+1. Open your calendar app (Google Calendar, Apple Calendar, Outlook, etc.)
+2. Find the "Import" or "Add Calendar" option
+3. Select your generated `.ics` file
+4. Choose calendar settings and confirm
+
+### Method 3: Auto-open (macOS)
+
+Use the `--open` flag to automatically open the calendar file:
+
+```bash
+python3 contest_calendar.py --platforms cf --open
+```
+
+## 🔄 Automation & Scheduling
+
+### 🍎 macOS Quick Update Script
+
+For Codeforces enthusiasts, use the included helper script:
 
 ```bash
 ./update_codeforces_calendar.sh
 ```
 
-It runs the main generator with `--platforms codeforces`, a 10-minute reminder, and saves the result as `codeforces_contests.ics` alongside the script. Feel free to adapt this script for other platforms or scheduling tools.
+This script:
 
-## Importing the Calendar
-1. Run the generator to create an `.ics` file.
-2. Import the file into your calendar application (drag-and-drop into Apple Calendar, or use "Import" in Google Calendar / Outlook).
-3. Verify that the events and reminder times appear as expected.
+- ⚡ Generates a Codeforces-only calendar
+- 🔔 Sets 10-minute reminders
+- 📅 Auto-opens in Calendar app
+- 💾 Saves as `codeforces_contests.ics`
 
-## Troubleshooting
-- **No Codeforces events**: The API occasionally returns no upcoming contests; rerun later or confirm on the Codeforces website.
-- **Timezone differences**: Static schedules use Asia/Kolkata. Edit the handler functions in `contest_calendar.py` to use a different region if needed.
-- **ICS file not opening**: Use the `--open` flag on macOS, or double-click the generated file manually on other platforms.
+### 🔧 Custom Automation
 
-## Contributing / Extending
-The code is organized by platform-specific handler functions in `contest_calendar.py`. To add a new platform:
-1. Implement a handler matching the signature `(reminder_minutes, months_ahead, calendar, quiet) -> bool`.
-2. Register the handler in the `platforms` dictionary.
-3. Add an alias in `PLATFORM_ALIASES` if you want shorthand support.
-4. Update this README with details for the new platform.
+Create your own automation by adapting the script for different platforms or adding it to cron jobs for regular updates.
 
-Pull requests and suggestions for more accurate recurring schedules are welcome.
+## 🔧 Troubleshooting
+
+<details>
+<summary>❌ Common Issues & Solutions</summary>
+
+### No Codeforces Events Showing
+
+- **Cause**: API temporarily unavailable or no upcoming contests
+- **Solution**: Wait and rerun, or check [codeforces.com](https://codeforces.com) directly
+
+### Calendar File Won't Open
+
+- **Cause**: System doesn't know how to handle `.ics` files
+- **Solution**:
+  - Use `--open` flag on macOS
+  - Manually drag file into calendar app
+  - Right-click → "Open with" → Calendar app
+
+### Wrong Timezone
+
+- **Current**: All times in Asia/Kolkata (IST)
+- **Solution**: Edit platform handlers in `contest_calendar.py` for different timezone
+
+### Missing Dependencies
+
+- **Error**: `ModuleNotFoundError`
+- **Solution**: Run `pip install -r requirements.txt`
+
+</details>
+
+## 🤝 Contributing
+
+We welcome contributions! Here's how you can help:
+
+### 🆕 Adding New Platforms
+
+1. **Create handler function** in `contest_calendar.py`:
+
+   ```python
+   def handle_platform_name(reminder_minutes, months_ahead, calendar, quiet):
+       # Your implementation here
+       return True  # Success
+   ```
+
+2. **Register the platform**:
+
+   ```python
+   platforms = {
+       'platform_name': handle_platform_name,
+       # ... existing platforms
+   }
+   ```
+
+3. **Add alias** (optional):
+
+   ```python
+   PLATFORM_ALIASES = {
+       'pn': 'platform_name',  # Short alias
+       # ... existing aliases
+   }
+   ```
+
+4. **Update this README** with the new platform details
+
+### 🐛 Bug Reports & Feature Requests
+
+- Open an issue with detailed description
+- Include error messages and system info
+- Suggest improvements for better contest schedules
+
+### 📝 Documentation
+
+- Fix typos or unclear instructions
+- Add examples for new use cases
+- Improve platform-specific guidance
+
+---
+
+<div align="center">
+
+**Made with ❤️ for competitive programmers**
+
+_Never miss another contest! 🚀_
+
+[⭐ Star this repo](../../stargazers) if it helped you stay on top of your programming contests!
+
+</div>
