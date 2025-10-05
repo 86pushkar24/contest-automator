@@ -43,68 +43,67 @@ Automatically fetch upcoming Codeforces contests and add them to your Apple Cale
 
 ## Usage
 
-### Quick Start
+### Interactive run
 
-Run the script to fetch the next 5 upcoming contests:
+Launch the unified generator and pick platforms when prompted:
 
 ```bash
-python3 codeforces_calendar.py
+python3 contest_calendar.py
 ```
 
-### What It Does
+You will choose the contest platforms (Codeforces, CodeChef, AtCoder, LeetCode) and set a reminder lead time. The script writes a single ICS file containing all selected events.
 
-1. **Fetches Contests**: Connects to `https://codeforces.com/api/contest.list`
-2. **Filters**: Shows only upcoming CF contests with valid start times
-3. **Generates Calendar**: Creates `codeforces_contests.ics` in the project directory
-4. **Opens Calendar**: Automatically launches Apple Calendar to import events
+### Non-interactive run
 
-### Example Output
+Use command-line flags to automate generation (ideal for cron jobs):
 
+```bash
+python3 contest_calendar.py \
+  --platforms cf \
+  --reminder 10 \
+  --output contest_calendar.ics \
+  --quiet
 ```
-Fetching contests from Codeforces...
-Generating .ics calendar entries...
-Saving calendar file to codeforces_contests.ics...
-Opening calendar file in Apple Calendar...
-✅ Codeforces contests successfully added to Apple Calendar!
-```
+
+Short codes: `cf` (Codeforces), `cc` (CodeChef), `ac` (AtCoder), `lc` (LeetCode). Add `--open` to automatically import the resulting file into Apple Calendar.
+
+### Automating a weekly Codeforces refresh
+
+1. Make the helper script executable:
+
+   ```bash
+   chmod +x update_codeforces_calendar.sh
+   ```
+
+2. Add a cron entry to rebuild the ICS every Sunday at 9 AM and re-import it:
+
+   ```cron
+   0 9 * * 0 /bin/bash /Users/86pushkar24/Desktop/Archive/Calendar/update_codeforces_calendar.sh >> /Users/86pushkar24/Desktop/Archive/Calendar/contest_calendar_cron.log 2>&1
+   ```
+
+   Adjust the path or schedule to suit your setup. The helper script generates `codeforces_contests.ics` with stable UIDs so Calendar replaces existing events when the file is reopened.
 
 ## Customization
 
-### Change Contest Limit
-
-Edit `codeforces_calendar.py` and modify the `main()` function:
-
-```python
-def main():
-    contests = fetch_upcoming_contests(limit=10)  # Get 10 contests instead of 5
-    # ... rest of the code
-```
-
-### Custom Output Filename
-
-Modify the `save_ics()` call in `main()`:
-
-```python
-filepath = save_ics(ics_data, "my_contests.ics")
-```
-
-### Disable Auto-Open
-
-Comment out or remove this line in `main()`:
-
-```python
-# open_in_calendar(filepath)  # Disable auto-open
-```
+- Change the reminder lead time with the `--reminder` flag or by editing the
+  default prompt in `contest_calendar.py:493-502`.
+- Adjust the coverage window for recurring contests inside each handler (for
+  example the six-month span at `contest_calendar.py:327-370`).
+- Override the output filename with `--output` or by modifying the naming logic
+  in `contest_calendar.py:519-525`.
 
 ## File Structure
 
 ```
 Contest-Automator/
-├── README.md                    # This file
-├── codeforces_calendar.py      # Main script
-├── codeforces_contests.ics     # Generated calendar file
-├── .venv/                      # Virtual environment (created after setup)
-└── requirements.txt            # Dependencies (optional)
+├── README.md                         # Project documentation
+├── contest_calendar.py               # Unified multi-platform generator
+├── update_codeforces_calendar.sh     # Weekly automation helper for cron
+├── atcoder_calendar.py               # Legacy single-platform script (optional)
+├── codechef_calendar.py              # Legacy single-platform script (optional)
+├── codeforces_calendar.py            # Legacy single-platform script (optional)
+├── leetcode_calendar.py              # Legacy single-platform script (optional)
+└── requirements.txt                  # Dependencies (optional)
 ```
 
 ## Generated Calendar Events

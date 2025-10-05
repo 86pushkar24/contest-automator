@@ -2,8 +2,24 @@
 
 from __future__ import annotations
 
+import argparse
+import subprocess
+import sys
+import warnings
 from datetime import date, datetime, time, timedelta
 from typing import Callable, Dict, List, Optional, Tuple
+
+warnings.filterwarnings(
+    "ignore",
+    message="urllib3 v2 only supports OpenSSL 1.1.1+",
+)
+
+try:
+    from urllib3.exceptions import NotOpenSSLWarning
+except Exception:
+    NotOpenSSLWarning = None  # type: ignore
+else:
+    warnings.filterwarnings("ignore", category=NotOpenSSLWarning)
 
 import requests
 from dateutil import tz
@@ -11,7 +27,67 @@ from dateutil.relativedelta import relativedelta
 from ics import Calendar, Event
 
 
-PlatformHandler = Callable[[int, Calendar], bool]
+PlatformHandler = Callable[[int, Calendar, bool], bool]
+
+
+SHORT_NAMES = {
+    "codeforces": "CF",
+    "codechef": "CC",
+    "atcoder": "AC",
+    "leetcode": "LC",
+}
+
+PLATFORM_ALIASES = {
+    "codeforces": "codeforces",
+    "cf": "codeforces",
+    "codechef": "codechef",
+    "cc": "codechef",
+    "atcoder": "atcoder",
+    "ac": "atcoder",
+    "leetcode": "leetcode",
+    "lc": "leetcode",
+}
+
+
+def parse_cli_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Generate contest calendar events as an ICS file."
+    )
+    parser.add_argument(
+        "--platforms",
+        help="Comma or space separated list of platforms (e.g. 'cf,lc').",
+    )
+    parser.add_argument(
+        "--reminder",
+        type=int,
+        help="Reminder lead time in minutes before each contest.",
+    )
+    parser.add_argument(
+        "--output",
+        help="Override the output filename for the generated ICS file.",
+    )
+    parser.add_argument(
+        "--quiet",
+        action="store_true",
+        help="Suppress non-essential console output (useful for automation).",
+    )
+    parser.add_argument(
+        "--open",
+        action="store_true",
+        help="Open the generated ICS file after creation (macOS).",
+    )
+    return parser.parse_args()
+
+
+def parse_platform_list(raw: str) -> List[str]:
+    selections: List[str] = []
+    for token in raw.replace(",", " ").split():
+        resolved = PLATFORM_ALIASES.get(token.lower())
+        if resolved is None:
+            raise ValueError(f"Unknown platform alias: {token}")
+        if resolved not in selections:
+            selections.append(resolved)
+    return selections
 
 
 def prompt_menu_choices(options: Dict[str, str]) -> List[str]:
@@ -113,15 +189,23 @@ def fetch_codeforces_contests(limit: Optional[int] = None) -> list:
     return upcoming_cf[:limit]
 
 
-def handle_codeforces(reminder_minutes: int, calendar: Calendar) -> bool:
+def handle_codeforces(
+    reminder_minutes: int, calendar: Calendar, quiet: bool = False
+) -> bool:
+    def log(message: str, is_error: bool = False) -> None:
+        if quiet and not is_error:
+            return
+        target = sys.stderr if is_error else sys.stdout
+        print(message, file=target)
+
     try:
         contests = fetch_codeforces_contests()
     except RuntimeError as error:
-        print(error)
+        log(str(error), is_error=True)
         return False
 
     if not contests:
-        print("No upcoming Codeforces contests were found.")
+        log("No upcoming Codeforces contests were found.")
         return False
 
     local_timezone = tz.tzlocal()
@@ -148,12 +232,18 @@ def handle_codeforces(reminder_minutes: int, calendar: Calendar) -> bool:
         start_local = start_utc.astimezone(local_timezone)
         duration_seconds = primary.get("durationSeconds", 0)
         duration = timedelta(seconds=duration_seconds)
+        primary_id = primary.get("id")
 
         event = Event()
         event.name = primary.get("name", "Codeforces Contest")
         event.begin = start_local
         event.duration = duration
         event.url = f"https://codeforces.com/contest/{primary.get('id')}"
+        if primary_id is not None:
+            event.uid = f"codeforces-{primary_id}@contest-calendar"
+        else:
+            fallback = start_local.strftime("%Y%m%dT%H%M%S")
+            event.uid = f"codeforces-{fallback}@contest-calendar"
 
         description_lines = [
             f"Type: {primary.get('kind', 'Codeforces Round')}",
@@ -180,7 +270,7 @@ def handle_codeforces(reminder_minutes: int, calendar: Calendar) -> bool:
         events_added = True
 
     if not events_added:
-        print("No Codeforces events to add to the calendar.")
+        log("No Codeforces events to add to the calendar.")
         return False
 
     return True
@@ -202,6 +292,7 @@ def generate_weekly_events(
     duration: timedelta,
     name: str,
     description: str,
+    uid_prefix: str,
 ) -> None:
     current_date = first_date
     while current_date <= end_date:
@@ -212,21 +303,32 @@ def generate_weekly_events(
             end=start_dt + duration,
             description=description,
         )
+        event.uid = (
+            f"{uid_prefix}-{start_dt.strftime('%Y%m%dT%H%M%S')}@contest-calendar"
+        )
         calendar.events.add(event)
         current_date += timedelta(days=7)
 
 
-def handle_codechef(reminder_minutes: int, calendar: Calendar) -> bool:
+def handle_codechef(
+    reminder_minutes: int, calendar: Calendar, quiet: bool = False
+) -> bool:
+    def log(message: str, is_error: bool = False) -> None:
+        if quiet and not is_error:
+            return
+        target = sys.stderr if is_error else sys.stdout
+        print(message, file=target)
+
     timezone = tz.gettz("Asia/Kolkata")
     if timezone is None:
-        print("Unable to load Asia/Kolkata timezone data.")
+        log("Unable to load Asia/Kolkata timezone data.", is_error=True)
         return False
 
     today = datetime.now(timezone).date()
     end_date = today + relativedelta(months=+6)
     first_contest = next_weekday(today, 2)  # Wednesday
     if first_contest > end_date:
-        print("No contests fall within the provided range.")
+        log("No contests fall within the provided range.")
         return False
 
     before_count = len(calendar.events)
@@ -239,26 +341,35 @@ def handle_codechef(reminder_minutes: int, calendar: Calendar) -> bool:
         timedelta(hours=2),
         "CodeChef Weekly Contest",
         "CodeChef weekly contest.",
+        "codechef-weekly",
     )
 
     if len(calendar.events) == before_count:
-        print("No CodeChef contests were added to the calendar.")
+        log("No CodeChef contests were added to the calendar.")
         return False
 
     return True
 
 
-def handle_atcoder(reminder_minutes: int, calendar: Calendar) -> bool:
+def handle_atcoder(
+    reminder_minutes: int, calendar: Calendar, quiet: bool = False
+) -> bool:
+    def log(message: str, is_error: bool = False) -> None:
+        if quiet and not is_error:
+            return
+        target = sys.stderr if is_error else sys.stdout
+        print(message, file=target)
+
     timezone = tz.gettz("Asia/Kolkata")
     if timezone is None:
-        print("Unable to load Asia/Kolkata timezone data.")
+        log("Unable to load Asia/Kolkata timezone data.", is_error=True)
         return False
 
     today = datetime.now(timezone).date()
     end_date = today + relativedelta(months=+6)
     first_contest = next_weekday(today, 5)  # Saturday
     if first_contest > end_date:
-        print("No contests fall within the provided range.")
+        log("No contests fall within the provided range.")
         return False
 
     before_count = len(calendar.events)
@@ -271,10 +382,11 @@ def handle_atcoder(reminder_minutes: int, calendar: Calendar) -> bool:
         timedelta(minutes=100),
         "AtCoder Beginner Contest",
         "Weekly AtCoder Beginner Contest.",
+        "atcoder-beginner",
     )
 
     if len(calendar.events) == before_count:
-        print("No AtCoder contests were added to the calendar.")
+        log("No AtCoder contests were added to the calendar.")
         return False
 
     return True
@@ -287,10 +399,18 @@ def next_biweekly_anchor(today: date) -> date:
     return anchor
 
 
-def handle_leetcode(reminder_minutes: int, calendar: Calendar) -> bool:
+def handle_leetcode(
+    reminder_minutes: int, calendar: Calendar, quiet: bool = False
+) -> bool:
+    def log(message: str, is_error: bool = False) -> None:
+        if quiet and not is_error:
+            return
+        target = sys.stderr if is_error else sys.stdout
+        print(message, file=target)
+
     timezone = tz.gettz("Asia/Kolkata")
     if timezone is None:
-        print("Unable to load Asia/Kolkata timezone data.")
+        log("Unable to load Asia/Kolkata timezone data.", is_error=True)
         return False
 
     today = datetime.now(timezone).date()
@@ -310,6 +430,7 @@ def handle_leetcode(reminder_minutes: int, calendar: Calendar) -> bool:
             timedelta(minutes=90),
             "LeetCode Weekly Contest",
             "LeetCode Weekly Contest.",
+            "leetcode-weekly",
         )
 
     if first_biweekly <= end_date:
@@ -325,17 +446,23 @@ def handle_leetcode(reminder_minutes: int, calendar: Calendar) -> bool:
                 end=start_dt + timedelta(minutes=90),
                 description="LeetCode Biweekly Contest.",
             )
+            event.uid = (
+                f"leetcode-biweekly-{start_dt.strftime('%Y%m%dT%H%M%S')}@contest-calendar"
+            )
             calendar.events.add(event)
             current = current + timedelta(days=14)
 
     if len(calendar.events) == before_count:
-        print("No LeetCode contests fall within the provided range.")
+        log("No LeetCode contests fall within the provided range.")
         return False
 
     return True
 
 
 def main() -> None:
+    args = parse_cli_args()
+    quiet = args.quiet
+
     platforms: Dict[str, Tuple[str, PlatformHandler]] = {
         "codeforces": ("Codeforces", handle_codeforces),
         "codechef": ("CodeChef", handle_codechef),
@@ -344,34 +471,58 @@ def main() -> None:
     }
 
     platform_labels = {key: label for key, (label, _) in platforms.items()}
-    selected_keys = prompt_menu_choices(platform_labels)
-    reminder_minutes = prompt_non_negative_int(
-        "Reminder lead time in minutes before the contest (default 10): ", default=10
-    )
+    if args.platforms:
+        try:
+            selected_keys = parse_platform_list(args.platforms)
+        except ValueError as error:
+            print(error, file=sys.stderr)
+            sys.exit(1)
+        if not selected_keys:
+            print("No valid platforms were provided.", file=sys.stderr)
+            sys.exit(1)
+        missing = [key for key in selected_keys if key not in platforms]
+        if missing:
+            print(
+                f"Unsupported platform(s) requested: {', '.join(missing)}",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+    else:
+        selected_keys = prompt_menu_choices(platform_labels)
+
+    if args.reminder is not None:
+        if args.reminder < 0:
+            print("Reminder lead time must be zero or positive.", file=sys.stderr)
+            sys.exit(1)
+        reminder_minutes = args.reminder
+    else:
+        reminder_minutes = prompt_non_negative_int(
+            "Reminder lead time in minutes before the contest (default 10): ",
+            default=10,
+        )
 
     aggregated_calendar = Calendar()
     successful_platforms: List[str] = []
 
     for key in selected_keys:
         label, handler = platforms[key]
-        if handler(reminder_minutes, aggregated_calendar):
+        if not quiet:
+            print(f"Processing {label} schedule…")
+        if handler(reminder_minutes, aggregated_calendar, quiet=quiet):
             successful_platforms.append(key)
 
     if not aggregated_calendar.events:
-        print("No contests were added for the selected platforms.")
+        if not quiet:
+            print("No contests were added for the selected platforms.")
         return
 
-    short_names = {
-        "codeforces": "CF",
-        "codechef": "CC",
-        "atcoder": "AC",
-        "leetcode": "LC",
-    }
-
     platforms_for_name = successful_platforms or selected_keys
-    platform_suffix = "_".join(short_names[key] for key in platforms_for_name)
-    today_str = datetime.now(tz.tzlocal()).date().isoformat()
-    filename = f"{today_str}_{platform_suffix}.ics"
+    platform_suffix = "_".join(SHORT_NAMES[key] for key in platforms_for_name)
+    if args.output:
+        filename = args.output
+    else:
+        today_str = datetime.now(tz.tzlocal()).date().isoformat()
+        filename = f"{today_str}_{platform_suffix}.ics"
 
     ics_text = inject_alarms(aggregated_calendar.serialize(), reminder_minutes)
 
@@ -379,11 +530,18 @@ def main() -> None:
         with open(filename, "w", encoding="utf-8") as file:
             file.write(ics_text)
     except OSError as error:
-        print(f"Failed to write {filename}: {error}")
+        print(f"Failed to write {filename}: {error}", file=sys.stderr)
         return
 
-    print(f"\nCalendar file created: {filename}")
-    print("Import this file into your calendar application to add the contests.")
+    if args.open:
+        try:
+            subprocess.run(["open", filename], check=False)
+        except OSError as error:
+            print(f"Failed to open {filename}: {error}", file=sys.stderr)
+
+    if not quiet:
+        print(f"Calendar file created: {filename}")
+        print("Import this file into your calendar application to add the contests.")
 
 
 if __name__ == "__main__":
