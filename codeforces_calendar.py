@@ -24,7 +24,7 @@ def fetch_upcoming_contests(limit=5):
     return upcoming[:limit]
 
 # ========== Step 2: Convert Contests to ICS ==========
-def generate_ics(contests):
+def generate_ics(contests, reminder_duration=15):
     calendar = Calendar()
     print("Generating .ics calendar entries...")
 
@@ -57,19 +57,20 @@ def generate_ics(contests):
         event.url = url
         event.description = "\n".join(description_lines)
 
+        # Calculate reminder time
+        reminder_time = start_time - timedelta(minutes=reminder_duration)
+
+        # Add VALARM for reminder
+        event.alarms.append({
+            "action": "DISPLAY",
+            "description": "Reminder",
+            "trigger": timedelta(minutes=-reminder_duration)
+        })
+
         calendar.events.add(event)
 
     # Convert to .ics string
     ics_text = str(calendar)
-
-    # Inject a 15-minute VALARM before each event
-    alarm_block = (
-        "BEGIN:VALARM\n"
-        "TRIGGER:-PT15M\n"
-        "ACTION:DISPLAY\n"
-        "DESCRIPTION:Reminder\n"
-        "END:VALARM"
-    )
 
     # Add the alarm block into each VEVENT
     ics_text_with_alarms = ics_text.replace("END:VEVENT", alarm_block + "\nEND:VEVENT")
@@ -97,7 +98,10 @@ def main():
             print("No upcoming Codeforces contests found.")
             return
 
-        ics_data = generate_ics(contests)
+        # Prompt user for customizable reminder duration
+        reminder_duration = int(input('Enter reminder duration in minutes before the contest: '))
+
+        ics_data = generate_ics(contests, reminder_duration)
         filepath = save_ics(ics_data)
         open_in_calendar(filepath)
 
