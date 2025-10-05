@@ -20,7 +20,6 @@ except Exception:
     NotOpenSSLWarning = None  # type: ignore
 else:
     warnings.filterwarnings("ignore", category=NotOpenSSLWarning)
-
 import requests
 from dateutil import tz
 from dateutil.relativedelta import relativedelta
