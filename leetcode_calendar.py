@@ -1,18 +1,11 @@
-from datetime import datetime, timedelta, time, date
+from datetime import date, datetime, timedelta, time
 from dateutil import tz
 from ics import Calendar, Event
-
-ALARM_BLOCK = (
-    "BEGIN:VALARM\n"
-    "TRIGGER:-PT10M\n"
-    "ACTION:DISPLAY\n"
-    "DESCRIPTION:Reminder\n"
-    "END:VALARM"
-)
 
 WEEKLY_DURATION = timedelta(minutes=90)
 BIWEEKLY_DURATION = timedelta(minutes=90)
 BIWEEKLY_ANCHOR = date(2024, 10, 11)
+
 
 def prompt_end_date(today):
     while True:
@@ -29,17 +22,42 @@ def prompt_end_date(today):
 
         return end_date
 
+
+def prompt_reminder_minutes(default=10):
+    while True:
+        raw_input = input(
+            "Reminder lead time in minutes before each contest (press Enter for 10): "
+        ).strip()
+
+        if not raw_input:
+            return default
+
+        try:
+            minutes = int(raw_input)
+        except ValueError:
+            print("Please enter a whole number of minutes.")
+            continue
+
+        if minutes < 0:
+            print("Reminder lead time cannot be negative.")
+            continue
+
+        return minutes
+
+
 def next_weekday(after_date, weekday):
     days_ahead = (weekday - after_date.weekday()) % 7
     if days_ahead == 0:
         days_ahead = 7
     return after_date + timedelta(days=days_ahead)
 
+
 def next_biweekly_start(today):
     current = BIWEEKLY_ANCHOR
     while current <= today:
         current += timedelta(days=14)
     return current
+
 
 def add_weekly_contests(calendar, first_date, end_date, timezone):
     current = first_date
@@ -53,6 +71,7 @@ def add_weekly_contests(calendar, first_date, end_date, timezone):
         )
         calendar.events.add(event)
         current += timedelta(days=7)
+
 
 def add_biweekly_contests(calendar, first_date, end_date, timezone):
     current = first_date
@@ -71,8 +90,17 @@ def add_biweekly_contests(calendar, first_date, end_date, timezone):
         calendar.events.add(event)
         current += timedelta(days=14)
 
-def inject_alarms(ics_text):
-    return ics_text.replace("END:VEVENT", f"{ALARM_BLOCK}\nEND:VEVENT")
+
+def inject_alarms(ics_text, reminder_minutes):
+    alarm_block = (
+        "BEGIN:VALARM\n"
+        f"TRIGGER:-PT{reminder_minutes}M\n"
+        "ACTION:DISPLAY\n"
+        "DESCRIPTION:Reminder\n"
+        "END:VALARM"
+    )
+    return ics_text.replace("END:VEVENT", f"{alarm_block}\nEND:VEVENT")
+
 
 def main():
     timezone = tz.gettz("Asia/Kolkata")
@@ -81,6 +109,7 @@ def main():
 
     today = datetime.now(timezone).date()
     end_date = prompt_end_date(today)
+    reminder_minutes = prompt_reminder_minutes()
     first_weekly = next_weekday(today, 6)
     first_biweekly = next_biweekly_start(today)
 
@@ -96,15 +125,20 @@ def main():
         print("No LeetCode contests fall within the provided range.")
         return
 
-    ics_text = inject_alarms(str(calendar))
+    ics_text = inject_alarms(str(calendar), reminder_minutes)
     output_file = "leetcode_contests.ics"
 
     with open(output_file, "w", encoding="utf-8") as file:
         file.write(ics_text)
 
     print("Created leetcode_contests.ics with upcoming weekly and biweekly contests.")
-    print("Each event includes a reminder 10 minutes before the start time.")
-    print("Biweekly contests assume the next occurrence on 11 October 2024 and repeat every 14 days.")
+    print(
+        f"Each event includes a reminder {reminder_minutes} minute(s) before the start time."
+    )
+    print(
+        "Biweekly contests assume the next occurrence on 11 October 2024 and repeat every 14 days."
+    )
+
 
 if __name__ == "__main__":
     main()
