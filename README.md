@@ -6,9 +6,10 @@ An interactive Python utility that assembles upcoming programming contest schedu
 - Supports Codeforces, CodeChef, AtCoder, and LeetCode with simple aliases (`cf`, `cc`, `ac`, `lc`).
 - Interactive menu when no platforms are specified; fully scriptable via CLI flags.
 - Fetches Codeforces contest data through the public API and groups overlapping divisions into a single event per timeslot.
-- Generates recurring events for the other platforms in the Asia/Kolkata timezone for the next six months.
+- Generates recurring events for the other platforms in the Asia/Kolkata timezone across your selected horizon (default six months).
 - Injects meeting reminders into every event (10 minutes by default, configurable per run).
 - Produces self-contained `.ics` files with deterministic filenames and optional automatic opening on macOS.
+- Lets you decide how many months of contests to include (default six).
 
 ## Requirements
 - Python 3.8 or newer (relies on postponed annotations from `__future__`).
@@ -33,7 +34,7 @@ python3 -m pip install -r requirements.txt
    python3 contest_calendar.py
    ```
 
-   The script will prompt you to select platforms and reminder lead time if you do not pass flags.
+   The script will prompt you to select platforms, reminder lead time, and the number of months to include if you do not pass flags.
 
 ## Command-Line Usage
 You can bypass the interactive prompts and automate runs with CLI options:
@@ -42,17 +43,19 @@ You can bypass the interactive prompts and automate runs with CLI options:
 python3 contest_calendar.py \
   --platforms cf,lc \
   --reminder 15 \
+  --months 4 \
   --output my_contests.ics \
   --open
 ```
 
 - `--platforms`: Comma/space separated list. Aliases: `cf`, `cc`, `ac`, `lc`.
 - `--reminder`: Minutes before contest start to trigger an alert (must be ≥ 0).
+- `--months`: How many upcoming months of contests to include (must be > 0).
 - `--output`: Custom output file name. Defaults to `YYYY-MM-DD_CF_CC.ics` based on the selected platforms.
 - `--quiet`: Suppress non-error console output (useful for scheduled jobs).
 - `--open`: Open the generated file with the default system handler (designed for macOS `open`).
 
-If you omit `--platforms` or `--reminder`, the script falls back to prompting in the terminal for those values.
+If you omit `--platforms`, `--reminder`, or `--months`, the script falls back to prompting in the terminal for those values.
 
 ## Platform Schedules
 - **Codeforces**: Retrieves upcoming contests from the official API. When multiple divisions overlap, the script keeps the most relevant division (preferring Div. 2 → Div. 3 → Div. 4 → Div. 1) and lists the rest in the event description.
@@ -60,7 +63,7 @@ If you omit `--platforms` or `--reminder`, the script falls back to prompting in
 - **AtCoder**: Creates weekly events every Saturday at 17:30 Asia/Kolkata lasting 100 minutes for the Beginner Contest.
 - **LeetCode**: Creates weekly contests every Sunday at 08:00 Asia/Kolkata and biweekly contests every other Saturday night at 20:00 Asia/Kolkata.
 
-All recurring schedules are generated for the six months following the run date. Adjust the source code if you would like to target a different timezone or cadence.
+All recurring schedules are generated for the number of months you request (default six) starting from the run date. Adjust the source code if you would like to target a different timezone or cadence.
 
 ## Automating Codeforces Updates (macOS)
 The helper script `update_codeforces_calendar.sh` regenerates a Codeforces-only calendar and opens it in the Calendar app:
@@ -83,7 +86,7 @@ It runs the main generator with `--platforms codeforces`, a 10-minute reminder, 
 
 ## Contributing / Extending
 The code is organized by platform-specific handler functions in `contest_calendar.py`. To add a new platform:
-1. Implement a handler matching the signature `(reminder_minutes, calendar, quiet) -> bool`.
+1. Implement a handler matching the signature `(reminder_minutes, months_ahead, calendar, quiet) -> bool`.
 2. Register the handler in the `platforms` dictionary.
 3. Add an alias in `PLATFORM_ALIASES` if you want shorthand support.
 4. Update this README with details for the new platform.

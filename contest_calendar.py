@@ -26,7 +26,7 @@ from dateutil.relativedelta import relativedelta
 from ics import Calendar, Event
 
 
-PlatformHandler = Callable[[int, Calendar, bool], bool]
+PlatformHandler = Callable[[int, int, Calendar, bool], bool]
 
 
 SHORT_NAMES = {
@@ -74,6 +74,11 @@ def parse_cli_args() -> argparse.Namespace:
         "--open",
         action="store_true",
         help="Open the generated ICS file after creation (macOS).",
+    )
+    parser.add_argument(
+        "--months",
+        type=int,
+        help="Number of months of contests to include (default 6).",
     )
     return parser.parse_args()
 
@@ -152,6 +157,23 @@ def prompt_non_negative_int(prompt: str, default: Optional[int] = None) -> int:
         return value
 
 
+def prompt_positive_int(prompt: str, default: Optional[int] = None) -> int:
+    """Prompt for a positive integer, accepting an optional default."""
+    while True:
+        raw_input_value = input(prompt).strip()
+        if not raw_input_value and default is not None:
+            return default
+        try:
+            value = int(raw_input_value)
+        except ValueError:
+            print("Please enter a whole number.")
+            continue
+        if value <= 0:
+            print("Please enter a number greater than zero.")
+            continue
+        return value
+
+
 def inject_alarms(ics_text: str, reminder_minutes: int) -> str:
     alarm_block = (
         "BEGIN:VALARM\n"
@@ -189,7 +211,7 @@ def fetch_codeforces_contests(limit: Optional[int] = None) -> list:
 
 
 def handle_codeforces(
-    reminder_minutes: int, calendar: Calendar, quiet: bool = False
+    reminder_minutes: int, months_ahead: int, calendar: Calendar, quiet: bool = False
 ) -> bool:
     def log(message: str, is_error: bool = False) -> None:
         if quiet and not is_error:
@@ -208,6 +230,7 @@ def handle_codeforces(
         return False
 
     local_timezone = tz.tzlocal()
+    cutoff_date = datetime.now(local_timezone).date() + relativedelta(months=+months_ahead)
     events_added = False
 
     grouped: Dict[int, List[dict]] = {}
@@ -229,6 +252,8 @@ def handle_codeforces(
         primary = choose_primary(grouped_contests)
         start_utc = datetime.fromtimestamp(start_ts, tz=tz.tzutc())
         start_local = start_utc.astimezone(local_timezone)
+        if start_local.date() > cutoff_date:
+            continue
         duration_seconds = primary.get("durationSeconds", 0)
         duration = timedelta(seconds=duration_seconds)
         primary_id = primary.get("id")
@@ -310,7 +335,7 @@ def generate_weekly_events(
 
 
 def handle_codechef(
-    reminder_minutes: int, calendar: Calendar, quiet: bool = False
+    reminder_minutes: int, months_ahead: int, calendar: Calendar, quiet: bool = False
 ) -> bool:
     def log(message: str, is_error: bool = False) -> None:
         if quiet and not is_error:
@@ -324,7 +349,7 @@ def handle_codechef(
         return False
 
     today = datetime.now(timezone).date()
-    end_date = today + relativedelta(months=+6)
+    end_date = today + relativedelta(months=+months_ahead)
     first_contest = next_weekday(today, 2)  # Wednesday
     if first_contest > end_date:
         log("No contests fall within the provided range.")
@@ -351,7 +376,7 @@ def handle_codechef(
 
 
 def handle_atcoder(
-    reminder_minutes: int, calendar: Calendar, quiet: bool = False
+    reminder_minutes: int, months_ahead: int, calendar: Calendar, quiet: bool = False
 ) -> bool:
     def log(message: str, is_error: bool = False) -> None:
         if quiet and not is_error:
@@ -365,7 +390,7 @@ def handle_atcoder(
         return False
 
     today = datetime.now(timezone).date()
-    end_date = today + relativedelta(months=+6)
+    end_date = today + relativedelta(months=+months_ahead)
     first_contest = next_weekday(today, 5)  # Saturday
     if first_contest > end_date:
         log("No contests fall within the provided range.")
@@ -399,7 +424,7 @@ def next_biweekly_anchor(today: date) -> date:
 
 
 def handle_leetcode(
-    reminder_minutes: int, calendar: Calendar, quiet: bool = False
+    reminder_minutes: int, months_ahead: int, calendar: Calendar, quiet: bool = False
 ) -> bool:
     def log(message: str, is_error: bool = False) -> None:
         if quiet and not is_error:
@@ -413,7 +438,7 @@ def handle_leetcode(
         return False
 
     today = datetime.now(timezone).date()
-    end_date = today + relativedelta(months=+6)
+    end_date = today + relativedelta(months=+months_ahead)
 
     first_weekly = next_weekday(today, 6)  # Sunday
     first_biweekly = next_biweekly_anchor(today)
@@ -500,6 +525,17 @@ def main() -> None:
             default=10,
         )
 
+    if args.months is not None:
+        if args.months <= 0:
+            print("Months to include must be greater than zero.", file=sys.stderr)
+            sys.exit(1)
+        months_ahead = args.months
+    else:
+        months_ahead = prompt_positive_int(
+            "Number of months of contests to include (default 6): ",
+            default=6,
+        )
+
     aggregated_calendar = Calendar()
     successful_platforms: List[str] = []
 
@@ -507,7 +543,7 @@ def main() -> None:
         label, handler = platforms[key]
         if not quiet:
             print(f"Processing {label} schedule…")
-        if handler(reminder_minutes, aggregated_calendar, quiet=quiet):
+        if handler(reminder_minutes, months_ahead, aggregated_calendar, quiet=quiet):
             successful_platforms.append(key)
 
     if not aggregated_calendar.events:
